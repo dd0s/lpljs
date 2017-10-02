@@ -162,3 +162,30 @@ function TokenStream(input) {
     }
 }
 
+function parse(input) {
+    function is_punc(ch) {
+        var tok = input.peek();
+        // READ THESE: 
+        // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Logical_Operators
+        // https://stackoverflow.com/questions/2966430/
+        // expr1 && expr2: Returns expr1 if it can be converted to false; otherwise, returns expr2. 
+        // TODO: why couldn't we write: return tok && tok.type == 'punc' && tok.value == ch && tok;
+        return tok && tok.type == 'punc' && (!ch || tok.value == ch) && tok;
+    }
+    function is_kw(kw) {
+        var tok = input.peek();
+        // TODO: WTF
+        return tok && tok.type == 'kw' && (!kw || tok.value == kw) && tok;
+    }
+    function is_op(op) {
+        var tok = input.peek();
+        // TODO: WTF
+        return tok && tok.type == 'op' && (!op || tok.value == op) && tok;
+    }
+
+}
+
+
+
+
+
