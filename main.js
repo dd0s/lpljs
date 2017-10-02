@@ -40,17 +40,28 @@ function TokenStream() {
         eof: eof,
         croak: input.croak
     };
-    function is_whitespace(ch) {
-        return " \t\n".indexOf(ch) >= 0;
+    function is_keyword(x) {
+        return keywords.indexOf(" " + x + " ") >= 0;
     }
     function is_digit(ch) {
+        // TODO: wtf is .test()
         return /[0-9]/i.test(ch);
     }
     function is_id_start(ch) {
         return /[a-z_]/i.test(ch);
     }
     function is_id(ch) {
-        return is_id_start(ch) || "?!-<>s"
+        // TODO: does it mean we can use any of "?!-<>=0123456789" chars?
+        return is_id_start(ch) || "?!-<>=0123456789".indexOf(ch) >= 0;
+    }
+    function is_op_char(ch) {
+        return "+-*/%=&|<>!".indexOf(ch) >= 0;
+    }
+    function is_punc(ch) {
+        return ",;(){}[]".indexOf(ch) >= 0;
+    }
+    function is_whitespace(ch) {
+        return " \t\n".indexOf(ch) >= 0;
     }
     function read_while(predicate) {
         var str = "";
@@ -73,7 +84,31 @@ function TokenStream() {
     }
     function read_ident() {
         var id = read_while(is_id);
-
+        return {
+            type: is_keyword(id) ? 'kw' : 'var',
+            value: id
+        };
+    }
+    function read_escaped(end) {
+        var escaped = false, str = "";
+        input.next();
+        while(!input.eof()) {
+            var ch = input.next();
+            if (escaped) {
+                str += ch;
+                escaped = false;
+            } else if (ch == "\\") {
+                escaped = true;
+            } else if (ch == end) {
+                break;
+            } else {
+                str += ch;
+            }
+        }
+        return str;
+    }
+    function read_string() {
+        return { type: 'str', value: read_escaped('"') };
     }
     function skip_comment() {
         read_while(function(ch) { return ch != '\n' });
@@ -101,6 +136,10 @@ function TokenStream() {
             value: read_while(is_op_char)
         };
         input.croak("Can't handle character: " + ch);
+    }
+    // TODO: wow
+    function peek() {
+        return current || (current = read_next());
     }
 }
 
