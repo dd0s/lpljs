@@ -1,5 +1,13 @@
+// A closure is the combination of a function bundled together (enclosed) with references
+// to its surrounding state (the lexical environment). In other words, a closure gives you 
+// access to an outer function’s scope from an inner function. In JavaScript, closures are 
+// created every time a function is created, at function creation time.
+
 function InputStream(input) {
     var pos = 0, line = 1, col = 0;
+    // NOTE THAT CLOSURES ARE INVOLVED IN OUR PROGRAM
+    // To use a closure, simply define a function inside another function and expose it. 
+    // To expose a function, return it or pass it to another function.
     return {
         next    :   next,   // returns next value and discards it from the stream
         peek    :   peek,   // returns next value without removing it from the stream
@@ -31,14 +39,14 @@ function InputStream(input) {
 // and returns a stream object with the same interface, but the values returned 
 // by peek() / next() will be tokens. A token is an object with two properties: 
 // type and value. 
-function TokenStream() {
+function TokenStream(input) {
     var current = null;
     var keywords = " if then else lambda true false";
     return {
-        next: next,
-        peek: peek,
-        eof: eof,
-        croak: input.croak
+        next    :   next,
+        peek    :   peek,
+        eof     :   eof,
+        croak   :   input.croak
     };
     function is_keyword(x) {
         return keywords.indexOf(" " + x + " ") >= 0;
@@ -117,10 +125,13 @@ function TokenStream() {
     function read_next() {
         // skip over whitespace
         read_while(is_whitespace);
+        // if eof reached, return nothing
         if (input.eof()) return null;
         // peek a character
         var ch = input.peek();
+        // if character happens to be #
         if (ch == '#') {
+
             skip_comment();
             return read_next();
         }
@@ -140,6 +151,14 @@ function TokenStream() {
     // TODO: wow
     function peek() {
         return current || (current = read_next());
+    }
+    function next() {
+        var tok = current;
+        current = null;
+        return tok || read_next();
+    }
+    function eof() {
+        return peek() == null;
     }
 }
 
