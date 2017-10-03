@@ -162,6 +162,7 @@ function TokenStream(input) {
     }
 }
 
+// The parser creates the AST nodes
 function parse(input) {
     function is_punc(ch) {
         var tok = input.peek();
@@ -169,6 +170,7 @@ function parse(input) {
         // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Logical_Operators
         // https://stackoverflow.com/questions/2966430/
         // expr1 && expr2: Returns expr1 if it can be converted to false; otherwise, returns expr2. 
+        // expr1 || expr2: Returns expr1 if it can be converted to true; otherwise, returns expr2. 
         // TODO: why couldn't we write: return tok && tok.type == 'punc' && tok.value == ch && tok;
         return tok && tok.type == 'punc' && (!ch || tok.value == ch) && tok;
     }
@@ -182,7 +184,37 @@ function parse(input) {
         // TODO: WTF
         return tok && tok.type == 'op' && (!op || tok.value == op) && tok;
     }
-
+    function skip_punc(ch) {
+        if (is_punc(ch)) input.next();
+        else input.croak("Expecting punctuation: \"" + ch + "\"");
+    }
+    function skip_kw(kw) {
+        if (is_kw(kw)) input.next();
+        else input.croak("Expecting keyword: \"" + kw + "\"");
+    }
+    function skip_op(op) {
+        if (is_op(op)) input.next();
+        else input.croak("Expecting operator: \"" + ch + "\"");
+    }
+    function delimited(start, stop, separator, parser) {
+        var a = [], first = true;
+        skip_punc(start);
+        while(!input.eof()) {
+            if (is_punc(stop)) break;
+            if (first) first = false; else skip_punc(separator);
+            if (is_punc(stop)) break;
+            a.push(parser());
+        }
+        skip_punc(stop);
+        return a;
+    }
+    function parse_lambda() {
+        return {
+            type: "lambda",
+            vars: delimited("(", ")", ",", parse_varname),
+            body: parse_expression()
+        };
+    }
 }
 
 
