@@ -43,11 +43,41 @@ function TokenStream() {
     function is_whitespace(ch) {
         return " \t\n".indexOf(ch) >= 0;
     }
+    function is_digit(ch) {
+        return /[0-9]/i.test(ch);
+    }
+    function is_id_start(ch) {
+        return /[a-z_]/i.test(ch);
+    }
+    function is_id(ch) {
+        return is_id_start(ch) || "?!-<>s"
+    }
     function read_while(predicate) {
         var str = "";
         while(!input.eof() && predicate(input.peek()))
             str += input.next();
         return str;
+    }
+    function read_number() {
+        var has_dot = false;
+        var number = read_while(function(ch) {
+            // TODO: wtf is this if doing??
+            if (ch == ".") {
+                if (has_dot) return false;
+                has_dot = true;
+                return true;
+            }
+            return is_digit(ch);
+        });
+        return { type: 'num', value: parseFloat(number) };
+    }
+    function read_ident() {
+        var id = read_while(is_id);
+
+    }
+    function skip_comment() {
+        read_while(function(ch) { return ch != '\n' });
+        input.next();
     }
     function read_next() {
         // skip over whitespace
