@@ -208,12 +208,44 @@ function parse(input) {
         skip_punc(stop);
         return a;
     }
+    function parse_varname() {
+        var name = input.text();
+        if (name.type != "var") input.croak("Expecting variable name");
+        return name.value;
+    }
     function parse_lambda() {
         return {
             type: "lambda",
             vars: delimited("(", ")", ",", parse_varname),
             body: parse_expression()
         };
+    }
+    // Parse the whole program. 
+    // Since we have no statements, we simply call 
+    // parse_expression() until we get to the end of the input
+    function parse_toplevel() {
+        var prog = [];
+        while (!input.eof()) {
+            prog.push(parse_expression());
+            if (!input.eof()) skip_punc(";");
+        }
+        return { type: "prog", prog: prog };
+    }
+    function parse_expression() {
+        return maybe_call(function() {
+            return maybe_binary(parse_atom(), 0);
+        })
+    }
+    function maybe_call(expr) {
+        expr = expr();
+        return is_punc("(") ? parse_call(expr) : expr;
+    }
+    function parse_call(func) {
+        return {
+            type: "call",
+            func: func,
+            args: delimited("(", ")", ",", parse_expression)
+        }
     }
 }
 
