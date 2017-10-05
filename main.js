@@ -41,7 +41,7 @@ function InputStream(input) {
 // type and value. 
 function TokenStream(input) {
     var current = null;
-    var keywords = " if then else lambda true false";
+    var keywords = " let if then else lambda true false";
     return {
         next    :   next,
         peek    :   peek,
@@ -244,7 +244,7 @@ function parse(input) {
         }
     }
     function parse_varname() {
-        var name = input.text();
+        var name = input.next();
         if (name.type != "var") input.croak("Expecting variable name");
         return name.value;
     }
@@ -265,9 +265,40 @@ function parse(input) {
     function parse_lambda() {
         return {
             type: "lambda",
+            name: input.peek().type == "var" ? input.next().value : null,
             vars: delimited("(", ")", ",", parse_varname),
             body: parse_expression()
         };
+    }
+    function parse_let() {
+        skip_kw("let");
+        if (input.peek().type == "var") {
+            var name = input.next().value;
+            var defs = delimited("(", ")", ",", parse_vardef);
+            return {
+                type: "call",
+                func: {
+                    type: "lambda",
+                    name: name,
+                    vars: defs.map(function(def) { return def.name }),
+                    body: parse_expression()
+                },
+                args: defs.map(function(def) { return def.def || FALSE })
+            };
+        }
+        return {
+            type: "let",
+            vars: delimimited("(", ")", ",", parse_vardef),
+            body: parse_expression()
+        };
+    }
+    function parse_vardef() {
+        var name = parse_varname(), def;
+        if (is_op("=")) {
+            input.next();
+            def = parse_expression();
+        }
+        return { name: name, def: def };
     }
     function parse_bool() {
         return {
@@ -288,6 +319,7 @@ function parse(input) {
                 return exp;
             }
             if (is_punc("{")) return parse_prog();
+            if (is_kw("let")) return parse_let();
             if (is_kw("if")) return parse_if();
             if (is_kw("true") || is_kw("false")) return parse_bool();
             if (is_kw("lambda")) {
@@ -385,6 +417,14 @@ function evaluate(exp, env) {
                             evaluate(exp.left, env),
                             evaluate(exp.right, env));
         
+        case "let":
+            exp.vars.forEach(function(v) {
+                var scope = env.extend();
+                scope.def(v.name, v.def ? evaluate(v.def, env) : false);
+                env = scope;
+            });
+            return evaluate(exp.body, env);
+
         case "lambda":
             return make_lambda(env, exp);
         
@@ -441,6 +481,10 @@ function apply_op(op, a, b) {
 }
 
 function make_lambda(env, exp) {
+    if (exp.name) {
+        env = env.extend();
+        env.def(exp.name, lambda);
+    }
     function lambda() {
         var names = exp.vars;
         var scope = env.extend();
@@ -470,11 +514,11 @@ if (typeof process != "undefined") (function() {
     var util = require("util");
     
     globalEnv.def("println", function(val) {
-        util.puts(val);
+        console.log(val);
     });
 
     globalEnv.def("print", function(val) {
-        util.print(val);
+        console.log(val);
     });
     
     var code = "";
