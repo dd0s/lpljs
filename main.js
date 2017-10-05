@@ -365,4 +365,20 @@ Environment.prototype = {
     }
 }
 
+function evaluate(exp, env) {
+    switch(exp.type) {
+        case "num":
+        case "str":
+        case "bool":
+            return exp.value;
+        
+        case "var":
+            return env.get(exp.value);
+        
+        case "assign":
+            if (exp.left.type != "var") 
+                throw new Error("Cannot assign to " + JSON.stringify(exp.left));
+            return env.set(exp.left.value, evaluate(exp.right, env));
+    }
+}
 
