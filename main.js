@@ -397,52 +397,87 @@ Environment.prototype = {
     }
 }
 
-function evaluate(exp, env) {
+function evaluate(exp, env, callback) {
     switch(exp.type) {
         case "num":
         case "str":
         case "bool":
-            return exp.value;
+            callback(exp.value);
+            return;
         
         case "var":
-            return env.get(exp.value);
+            callback(env.get(exp.value));
         
         case "assign":
             if (exp.left.type != "var") 
                 throw new Error("Cannot assign to " + JSON.stringify(exp.left));
-            return env.set(exp.left.value, evaluate(exp.right, env));
+            evaluate(exp.right, env, function(right) {
+                callback(env.set(exp.left.value, right));
+            });
+            return;
         
         case "binary":
-            return apply_op(exp.operator,
-                            evaluate(exp.left, env),
-                            evaluate(exp.right, env));
+            evaluate(exp.left, env, function (left) {
+                evaluate(exp.right, env, function(right) {
+                    callback(apply_op(exp.operator, lefr, right));
+                });
+            });
+            return;
         
         case "let":
-            exp.vars.forEach(function(v) {
-                var scope = env.extend();
-                scope.def(v.name, v.def ? evaluate(v.def, env) : false);
-                env = scope;
-            });
-            return evaluate(exp.body, env);
+            (function loop(env, i) {
+                if (i < exp.vars.length) {
+                    var v = exp.vars[i];
+                    if (v.def) evaluate(v.def, env, function (value) {
+                        var scope = env.extend();
+                        scope.def(v.name, value);
+                        loop(scope, i + 1);
+                    }); else {
+                        var scope = env.extend();
+                        scope.def(v.name, false);
+                        loop(scope, i + 1);
+                    }
+                } else  {
+                    evaluate(exp.body, env, callback);
+                }
+            })(env, 0);
+            return;
 
         case "lambda":
-            return make_lambda(env, exp);
+            callback(make_lambda(env, exp));
+            return;
         
         case "if":
-            var cond = evaluate(exp.cond, env);
-            if (cond !== false) return evaluate(exp.then, env);
-            return exp.else ? evaluate(exp.else, env) : false;
+            evaluate(exp.cond, env, function (cond) {
+                if (cond !== false) evaluate(exp.then, env, callback);
+                else if (exp.else) evaluate(exp.else, env, callback);
+                else callback(false);
+            });
+            return;
         
         case "prog":
-            var val = false;
-            exp.prog.forEach(function(exp) { val = evaluate(exp, env) });
-            return val;
+            (function loop(last, i) {
+                if (i < exp.prog.length) evaluate(exp.prog[i], env, function (val) {
+                    loop(val, i + 1);
+                }); else {
+                    callback(last);
+                }
+            })(false, 0);
+            return;
         
         case "call":
-            var func = evaluate(exp.func, env);
-            return func.apply(null, exp.args.map(function(arg) {
-                return evaluate(arg, env);
-            }));
+            evaluate(exp.fucn, env, function (fucn) {
+                (function loop(args, i) {
+                    if (i < exp.args.length) evaluate(exp.args[i], env, function (arg) {
+                        args[i + 1] = arg;
+                        loop(args, i + 1);
+                    }); else {
+                        fucn.apply(null, args);
+                    }
+                // TODO: WOOO0OWW, WTF, REALLY
+                })([ callback ], 0);
+            });
+            return;
 
         default:
             throw new Error("I don't know how to evaluate " + exp.type);
@@ -480,18 +515,20 @@ function apply_op(op, a, b) {
     throw new Error("Can't apply operator " + op);
 }
 
-function make_lambda(env, exp) {
+function make_lambda() {
     if (exp.name) {
         env = env.extend();
         env.def(exp.name, lambda);
     }
-    function lambda() {
+    function lambda(callback) {
         var names = exp.vars;
         var scope = env.extend();
-        for (var i = 0; i < names.length; i++) {
-            scope.def(names[i], i < arguments.length ? arguments[i] : false);
-        }
-        return evaluate(exp.body, scope);
+        for (var i = 0; i < names.length; ++i)
+            scope.def(names[i], 
+                        i + 1 < arguments.length 
+                        ? arguments[i + 1] 
+                        : false);
+        evaluate(exp.body, scope, callback);
     }
     return lambda;
 }
@@ -513,12 +550,14 @@ globalEnv.def("time", function(func) {
 if (typeof process != "undefined") (function() {
     var util = require("util");
     
-    globalEnv.def("println", function(val) {
+    globalEnv.def("println", function(k, val) {
         console.log(val);
+        k(false);
     });
 
-    globalEnv.def("print", function(val) {
+    globalEnv.def("print", function(k, val) {
         console.log(val);
+        k(false);
     });
     
     var code = "";
